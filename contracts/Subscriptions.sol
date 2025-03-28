@@ -31,11 +31,11 @@ pragma solidity ^0.8.0;
 // NonFractionalized Accounts, also called sub accounts (subAcct) represents a parent adding a child to their membership
 // Meaning, they are considered add-ons, and can be set up to require a fee
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-
 /// @author Keshawn
 /// @title Subscription Project
 /// @custom:experimental This is an experimental contract.
+
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Subscription is Ownable { 
 
@@ -106,8 +106,8 @@ contract Subscription is Ownable {
     event ConfirmSplitAcctApproval(address indexed potentialSubAcct);
     event RejectApproval(address indexed potentialSubAcct); 
     
-    mapping(address => bool) public _subscribed; // Are they subscribed?
-    mapping(address => Membership) public subscription; // Represents Memberships
+    mapping(address => bool) public isSubscribed; // Are they subscribed?
+    mapping(address => Membership) public memberships; // Represents Memberships
     
     mapping(uint id => PendingApproval) internal pendingApprovals; // Represents Pending Approvals
     mapping(address sendTo => bool) internal sentApproval; // Has the approval been sent?
@@ -120,10 +120,10 @@ contract Subscription is Ownable {
     /// @notice 3. Makes sure that person is subscribed
     modifier isSubscriptionActive() {
         require(owner() != msg.sender, "The owner of this contract cannot perform this action"); 
-        require(msg.sender == subscription[msg.sender].mainAcct, "Only the main account holder can execute this operation"); //checks to see if you are the main acct holder
-        require(_subscribed[msg.sender] == true, "Subscription doesn't exist, or it's cancelled"); // checks to see if the subscription exist
+        require(msg.sender == memberships[msg.sender].mainAcct, "Only the main account holder can execute this operation"); //checks to see if you are the main acct holder
+        require(isSubscribed[msg.sender] == true, "Subscription doesn't exist, or it's cancelled"); // checks to see if the subscription exist
                 
-        Membership storage _membership = subscription[msg.sender]; 
+        Membership storage _membership = memberships[msg.sender]; 
         if(block.timestamp < subscriptionData.timeframe) {
            _membership.isExpired = true;  
         }
@@ -151,7 +151,7 @@ contract Subscription is Ownable {
     /// @notice sub account user, already has their own subscription where they are the main holder
     /// @param sendTo represents who the request is going to
     modifier isPotentialAcctSubscribed(address sendTo) {
-        require(_subscribed[sendTo] == false, "You already have an account");
+        require(isSubscribed[sendTo] == false, "You already have an account");
         _; 
     }
 
@@ -170,14 +170,14 @@ contract Subscription is Ownable {
     /// REMINDER: Make sure the function is made payable
     function subscribe() public payable virtual {
         require(owner() != msg.sender, "You cannot perform this action"); 
-        require(_subscribed[msg.sender] == false, "You already have a subscription"); 
+        require(isSubscribed[msg.sender] == false, "You already have a subscription"); 
 
-        if (subscription[msg.sender].ownedPreviousMembership == false){
+        if (memberships[msg.sender].ownedPreviousMembership == false){
             Membership memory _member; 
             _member.mainAcct = msg.sender;  
 
-            subscription[msg.sender] = _member;  
-            _subscribed[msg.sender] = true;
+            memberships[msg.sender] = _member;  
+            isSubscribed[msg.sender] = true;
             subscriptionData.subscribers++;
 
             emit Subscribed(msg.sender, subscriptionData.price);
@@ -187,8 +187,8 @@ contract Subscription is Ownable {
             Membership memory _member; 
             _member.mainAcct = msg.sender;  
 
-            subscription[msg.sender] = _member;  
-            _subscribed[msg.sender] = true;
+            memberships[msg.sender] = _member;  
+            isSubscribed[msg.sender] = true;
 
             subscriptionData.cancellations--;
             subscriptionData.subscribers++; 
@@ -201,8 +201,8 @@ contract Subscription is Ownable {
     /// @notice Unsubscribes membership from subscription 
     /// @notice Tracks subscriptions and cancellations
     function cancel() external isSubscriptionActive  {   
-        _subscribed[msg.sender] = false;
-        subscription[msg.sender].ownedPreviousMembership = true; 
+        isSubscribed[msg.sender] = false;
+        memberships[msg.sender].ownedPreviousMembership = true; 
         subscriptionData.cancellations++;
         subscriptionData.subscribers--; 
 
@@ -212,7 +212,7 @@ contract Subscription is Ownable {
     /// @custom:removefunction I may remove this function 
     /// REMINDER: Test Functionality
     function deleteMembership() external isSubscriptionActive  {
-        delete _subscribed[msg.sender]; 
+        delete isSubscribed[msg.sender]; 
         emit DeleteMembership(msg.sender);
     }
 
@@ -287,7 +287,7 @@ contract Subscription is Ownable {
     /// @param _splitAcct represents who you want to add to the split account
     /// @param _id represents the id of the pending approval
     function addSplitAcct(address _splitAcct, uint _id) public virtual isSubscriptionActive isApproved(_id, ApprovalType.NonFractionalApproval)  {
-        Membership storage _membership = subscription[msg.sender]; 
+        Membership storage _membership = memberships[msg.sender]; 
         _membership.splitAccts.push(_splitAcct);
     }
 
@@ -295,7 +295,7 @@ contract Subscription is Ownable {
     /// @param _subAcct represents who you want to add to the sub account
     /// @param _id represents the id of the pending approval
     function addSubAcct(address _subAcct, uint _id) public virtual isSubscriptionActive isApproved(_id, ApprovalType.FractionalizedApproval)  {
-        Membership storage _membership = subscription[msg.sender]; 
+        Membership storage _membership = memberships[msg.sender]; 
         _membership.subAccts.push(_subAcct); 
     }
 
@@ -304,8 +304,8 @@ contract Subscription is Ownable {
     // makes them pay the subscription fee to renew membership
     function renew() external view {
         require(owner() != msg.sender, "The owner of this contract cannot perform this action"); 
-        require(msg.sender == subscription[msg.sender].mainAcct, "Only the main account holder can execute this operation"); //checks to see if you are the main acct holder
-        require(_subscribed[msg.sender] == true, "Subscription doesn't exist, or it's cancelled");        
+        require(msg.sender == memberships[msg.sender].mainAcct, "Only the main account holder can execute this operation"); //checks to see if you are the main acct holder
+        require(isSubscribed[msg.sender] == true, "Subscription doesn't exist, or it's cancelled");        
         //require() some sort of payment from the msg.sender
         // membership.expired = false 
     }
