@@ -38,12 +38,12 @@ contract("Subscriptions", (accounts) => {
     }); 
 
     it("Test: subscribe(), If they're subscribed to the subscription", async() => {
-        const isSubscribed = await rootInstance._subscribed(mainHolderAcct); 
+        const isSubscribed = await rootInstance.isSubscribed(mainHolderAcct); 
         assert.equal(isSubscribed, true);
     });
 
     it("Test: subscribe(), If newly subscribed account became the main account holder", async() => {
-        const acctHolder = await rootInstance.subscription(mainHolderAcct);
+        const acctHolder = await rootInstance.memberships(mainHolderAcct);
         assert.equal(acctHolder.mainAcct, mainHolderAcct);
     }); 
 
@@ -77,12 +77,12 @@ contract("Subscriptions", (accounts) => {
 
     it("Test: cancel(), Should cancel main holder's membership", async() => {
         await rootInstance.cancel({from: mainHolderAcct}); 
-        const isSubscribed = await rootInstance._subscribed(mainHolderAcct); 
+        const isSubscribed = await rootInstance.isSubscribed(mainHolderAcct); 
         assert.equal(isSubscribed, false); 
     }); 
 
     it("Test: cancel(), Set ownedPreviousMembership flag to true after canceling", async() => {
-        const membership = await rootInstance.subscription(mainHolderAcct);
+        const membership = await rootInstance.memberships(mainHolderAcct);
         assert.equal(membership.ownedPreviousMembership, true); 
     });
 
