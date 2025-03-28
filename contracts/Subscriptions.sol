@@ -58,7 +58,7 @@ contract Subscription is Ownable {
         string name;
     }
 
-    SubscriptionData internal subscriptionData;
+    SubscriptionData public subscriptionData;
 
     /// @notice Constructor Initiates Subscription Data Struct
     /// @param _name, _price, _timeframe 
@@ -155,11 +155,6 @@ contract Subscription is Ownable {
         _; 
     }
 
-    /// @return Returns data about subscription 
-    function getSubscriptionInfo() external view returns(SubscriptionData memory) {
-        return subscriptionData; 
-    } 
-
     /// @return Returns the amount subscribers 
     function getSubscribers() external view returns(uint) {
         return subscriptionData.subscribers; 
@@ -180,7 +175,6 @@ contract Subscription is Ownable {
         if (subscription[msg.sender].ownedPreviousMembership == false){
             Membership memory _member; 
             _member.mainAcct = msg.sender;  
-            _member.price = subscriptionData.price; 
 
             subscription[msg.sender] = _member;  
             _subscribed[msg.sender] = true;
@@ -192,7 +186,6 @@ contract Subscription is Ownable {
         else {
             Membership memory _member; 
             _member.mainAcct = msg.sender;  
-            _member.price = subscriptionData.price; 
 
             subscription[msg.sender] = _member;  
             _subscribed[msg.sender] = true;
@@ -203,7 +196,6 @@ contract Subscription is Ownable {
             emit Subscribed(msg.sender, subscriptionData.price);
     
         }
-
     } 
     
     /// @notice Unsubscribes membership from subscription 
@@ -228,7 +220,7 @@ contract Subscription is Ownable {
     /// @param _setPrice Sets a new price for the subscription 
     /// REMINDER: _setPrice cannot be lower than zero
     function changePrice(uint _setPrice) external onlyOwner {
-        price = _setPrice;  
+        subscriptionData.price = _setPrice;  
         emit PriceUpdate(name, _setPrice);
     }
 
