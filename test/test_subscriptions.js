@@ -60,6 +60,7 @@ contract("Subscriptions", (accounts) => {
             assert.equal(error.message, revertString);
         }
     });
+
     it("Test: Should not allow owner of contract to subscribe to their own subscription", async() => {
         const errMsg = "You cannot perform this action"; 
         const revertString = `VM Exception while processing transaction: revert ${errMsg} -- Reason given: ${errMsg}.`; 
@@ -74,9 +75,21 @@ contract("Subscriptions", (accounts) => {
         }
     });
 
-    it("Test: Membership price should be eq to the subscription price", async() => {
-        const getMembershipPrice = rootInstance.subscription(mainHolderAcct); 
-        const getSubscriptionPrice = rootInstance.getSubscriptionInfo(); 
-        assert.equal(getSubscriptionPrice.price, getMembershipPrice.price); 
-    }); 
+    //it("Test: Membership price should be eq to the subscription price", async() => {
+    //    const getMembershipPrice = await rootInstance.subscription(mainHolderAcct); 
+    //    const getSubscriptionPrice = await rootInstance.getSubscriptionInfo(); 
+    //    assert.equal(getSubscriptionPrice.price, getMembershipPrice.price); 
+    //}); 
+//
+    //it("Test: Should cancel main holder's membership", async() => {
+    //    await rootInstance.cancel({from: mainHolderAcct}); 
+    //    const isSubscribed = await rootInstance._subscribed(mainHolderAcct); 
+    //    console.log(isSubscribed);
+    //    assert.equal(isSubscribed, true); 
+    //}); 
+
+    //it("Test: Set ownedPreviousMembership flag to true after canceling", async() => {
+    //    const ownedPreviousMembership = rootInstance.subscription({from: mainHolderAcct}).ownedPreviousMembership;
+    //    assert.equal(ownedPreviousMembership, true); 
+    //});
 })

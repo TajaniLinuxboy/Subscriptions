@@ -190,8 +190,18 @@ contract Subscription is Ownable {
         }
 
         else {
+            Membership memory _member; 
+            _member.mainAcct = msg.sender;  
+            _member.price = price; 
+
+            subscription[msg.sender] = _member;  
+            _subscribed[msg.sender] = true;
+
             subscriptionData.cancellations--;
             subscriptionData.subscribers++; 
+
+            emit Subscribed(msg.sender, price);
+    
         }
 
     } 
