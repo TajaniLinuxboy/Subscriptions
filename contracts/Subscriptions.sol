@@ -180,19 +180,19 @@ contract Subscription is Ownable {
         if (subscription[msg.sender].ownedPreviousMembership == false){
             Membership memory _member; 
             _member.mainAcct = msg.sender;  
-            _member.price = price; 
+            _member.price = subscriptionData.price; 
 
             subscription[msg.sender] = _member;  
             _subscribed[msg.sender] = true;
             subscriptionData.subscribers++;
 
-            emit Subscribed(msg.sender, price);
+            emit Subscribed(msg.sender, subscriptionData.price);
         }
 
         else {
             Membership memory _member; 
             _member.mainAcct = msg.sender;  
-            _member.price = price; 
+            _member.price = subscriptionData.price; 
 
             subscription[msg.sender] = _member;  
             _subscribed[msg.sender] = true;
@@ -200,7 +200,7 @@ contract Subscription is Ownable {
             subscriptionData.cancellations--;
             subscriptionData.subscribers++; 
 
-            emit Subscribed(msg.sender, price);
+            emit Subscribed(msg.sender, subscriptionData.price);
     
         }
 
