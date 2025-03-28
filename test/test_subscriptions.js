@@ -75,21 +75,20 @@ contract("Subscriptions", (accounts) => {
         }
     });
 
-    //it("Test: Membership price should be eq to the subscription price", async() => {
-    //    const getMembershipPrice = await rootInstance.subscription(mainHolderAcct); 
-    //    const getSubscriptionPrice = await rootInstance.getSubscriptionInfo(); 
-    //    assert.equal(getSubscriptionPrice.price, getMembershipPrice.price); 
-    //}); 
-//
-    //it("Test: Should cancel main holder's membership", async() => {
-    //    await rootInstance.cancel({from: mainHolderAcct}); 
-    //    const isSubscribed = await rootInstance._subscribed(mainHolderAcct); 
-    //    console.log(isSubscribed);
-    //    assert.equal(isSubscribed, true); 
-    //}); 
+    it("Test: Membership price should be eq to the subscription price", async() => {
+        const getMembershipPrice = await rootInstance.subscription(mainHolderAcct); 
+        const getSubscriptionPrice = await rootInstance.getSubscriptionInfo(); 
+        assert.equal(getSubscriptionPrice.price, getMembershipPrice.price); 
+    }); 
 
-    //it("Test: Set ownedPreviousMembership flag to true after canceling", async() => {
-    //    const ownedPreviousMembership = rootInstance.subscription({from: mainHolderAcct}).ownedPreviousMembership;
-    //    assert.equal(ownedPreviousMembership, true); 
-    //});
+    it("Test: Should cancel main holder's membership", async() => {
+        await rootInstance.cancel({from: mainHolderAcct}); 
+        const isSubscribed = await rootInstance._subscribed(mainHolderAcct); 
+        assert.equal(isSubscribed, false); 
+    }); 
+
+    it("Test: Set ownedPreviousMembership flag to true after canceling", async() => {
+        const membership = await rootInstance.subscription(mainHolderAcct);
+        assert.equal(membership.ownedPreviousMembership, true); 
+    });
 })
