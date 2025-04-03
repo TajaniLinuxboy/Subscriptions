@@ -109,8 +109,8 @@ contract Subscription is Ownable {
     mapping(address => bool) public isSubscribed; // Are they subscribed?
     mapping(address => Membership) public memberships; // Represents Memberships
     
-    mapping(uint id => PendingApproval) internal pendingApprovals; // Represents Pending Approvals
-    mapping(address sendTo => bool) internal sentApproval; // Has the approval been sent?
+    mapping(address subacct => PendingApproval) public pendingApprovals; // Represents Pending Approvals
+    mapping(address _sendTo => bool) public sentApproval; // Has the approval been sent?
 
     //mapping(address subaccount => address mainholder) //Are they a sub account? 
 
@@ -137,9 +137,9 @@ contract Subscription is Ownable {
     /// @notice 1. Makes sure the owner of the contract cannot perform this action 
     /// @notice 2. Makes sure the approval type is correct (Non-Fractional or Fractional) 
     /// @notice 3. Makes sure the approval has been approved
-    /// @param _id represents the id of the approval
-    modifier isApproved(uint _id, ApprovalType _approvalType) {
-        PendingApproval storage getApproval = pendingApprovals[_id]; 
+    /// @param _from represents the approval
+    modifier isApproved(address _from, ApprovalType _approvalType) {
+        PendingApproval storage getApproval = pendingApprovals[_from]; 
         
         require(owner() != msg.sender, "The owner of this contract cannot perform this action"); 
         require(getApproval._approvalType == _approvalType, "Wrong Approval Type"); 
@@ -149,9 +149,9 @@ contract Subscription is Ownable {
 
     /// @notice This modifier checks to see if the potential account, which is a possible 
     /// @notice sub account user, already has their own subscription where they are the main holder
-    /// @param sendTo represents who the request is going to
-    modifier isPotentialAcctSubscribed(address sendTo) {
-        require(isSubscribed[sendTo] == false, "You already have an account");
+    /// @param _sendTo represents who the request is going to
+    modifier isPotentialAcctSubscribed(address _sendTo) {
+        require(isSubscribed[_sendTo] == false, "You already have an account");
         _; 
     }
 
@@ -225,43 +225,41 @@ contract Subscription is Ownable {
     }
 
     /// @notice This function will send a non fractionalized approval to the potential subaccount 
-    /// @param _sendApprovalTo Address of the potential subaccount holder (Non-Fractional)
-    function sendNonFractionalizedInvitation(address _sendApprovalTo) external virtual isSubscriptionActive isPotentialAcctSubscribed(_sendApprovalTo)  {
-        require(sentApproval[_sendApprovalTo] == false, "You already sent an approval");
+    /// @param _sendTo Address of the potential subaccount holder (Non-Fractional)
+    function sendNonFractionalizedInvitation(address _sendTo) external virtual isSubscriptionActive isPotentialAcctSubscribed(_sendTo)  {
+        require(sentApproval[_sendTo] == false, "Invitation was already sent");
 
         ApprovalType approveType = ApprovalType.NonFractionalApproval;
 
-        PendingApproval memory _pendingapproval = PendingApproval({from: msg.sender, to: _sendApprovalTo, status: true, _approvalType: approveType });         
-        pendingApprovals[pendingId] = _pendingapproval; 
-        pendingId++;
+        PendingApproval memory _pendingapproval = PendingApproval({from: msg.sender, to: _sendTo, status: true, _approvalType: approveType });         
+        pendingApprovals[_sendTo] = _pendingapproval; 
 
-        sentApproval[_sendApprovalTo] = true; 
+        sentApproval[_sendTo] = true; 
                 
-        emit SendApproval(pendingId, msg.sender, _sendApprovalTo, approveType); 
+        emit SendApproval(pendingId, msg.sender, _sendTo, approveType); 
     }
 
     /// @notice Ex: A roomate wants to add the roomate to their subscription, 
     /// @notice but they want to split/share the subscription between them
-    /// @param _sendApprovalTo Address of the potential subaccount holder  (Fractionalized) 
-    function sendFractionalizedInvitation(address _sendApprovalTo) external virtual isSubscriptionActive isPotentialAcctSubscribed(_sendApprovalTo)  {
-        require(sentApproval[_sendApprovalTo] == false, "You were already sent an approval");
+    /// @param _sendTo Address of the potential subaccount holder  (Fractionalized) 
+    function sendFractionalizedInvitation(address _sendTo) external virtual isSubscriptionActive isPotentialAcctSubscribed(_sendTo)  {
+        require(sentApproval[_sendTo] == false, "Invitation was already sent");
 
         ApprovalType approveType = ApprovalType.FractionalizedApproval;
          
-        PendingApproval memory _pendingapproval = PendingApproval({from: msg.sender, to: _sendApprovalTo, status: true, _approvalType: approveType});
-        pendingApprovals[pendingId] = _pendingapproval; 
-        pendingId++;
+        PendingApproval memory _pendingapproval = PendingApproval({from: msg.sender, to: _sendTo, status: true, _approvalType: approveType});
+        pendingApprovals[_sendTo] = _pendingapproval; 
 
-        sentApproval[_sendApprovalTo] = true; 
+        sentApproval[_sendTo] = true; 
         
-        emit SendApproval(pendingId, msg.sender, _sendApprovalTo, approveType);
+        emit SendApproval(pendingId, msg.sender, _sendTo, approveType);
     }
 
     /// @notice Allow users to confirm they have approved a split account or sub account subscription
-    /// @param _id represents the id of the pending approval
+    /// @param _sendTo represents addr of the pending approval
     /// @param _approvalType represents the approval type (fractional or non-fractional) 
-    function confirmApproval(uint _id, ApprovalType _approvalType) external virtual {
-        require(pendingApprovals[_id].to == msg.sender, "Only allowed for potential subaccount holders"); 
+    function confirmApproval(address _sendTo, ApprovalType _approvalType) external virtual {
+        require(pendingApprovals[_sendTo].to == msg.sender, "Only allowed for potential subaccount holders"); 
     
         if (_approvalType == ApprovalType.NonFractionalApproval) {
             emit ConfirmSubAcctApproval(msg.sender); 
@@ -275,26 +273,26 @@ contract Subscription is Ownable {
     
 
     /// @notice Allows potential sub account holders to reject an approval 
-    /// @param _id represents the id of the pending approval
-    function rejectInvitation(uint _id) external virtual  {
+    /// @param _from represents of the pending approval
+    function rejectInvitation(address _from) external virtual  {
         require(owner() != msg.sender, "Owner of this contract cannot perform this action"); 
-        require(pendingApprovals[_id].to == msg.sender, "Only allowed for potential subaccount holders"); 
-        delete pendingApprovals[_id]; 
+        require(pendingApprovals[_from].to == msg.sender, "Only allowed for potential subaccount holders"); 
+        delete pendingApprovals[_from]; 
         emit RejectApproval(msg.sender);
     }
 
     /// @notice Add split account to membership
     /// @param _splitAcct represents who you want to add to the split account
-    /// @param _id represents the id of the pending approval
-    function addSplitAcct(address _splitAcct, uint _id) public virtual isSubscriptionActive isApproved(_id, ApprovalType.NonFractionalApproval)  {
+    /// @param _from represents the pending approval
+    function addSplitAcct(address _splitAcct, address _from) public virtual isSubscriptionActive isApproved(_from, ApprovalType.NonFractionalApproval)  {
         Membership storage _membership = memberships[msg.sender]; 
         _membership.splitAccts.push(_splitAcct);
     }
 
     /// @notice Add sub account to membership
     /// @param _subAcct represents who you want to add to the sub account
-    /// @param _id represents the id of the pending approval
-    function addSubAcct(address _subAcct, uint _id) public virtual isSubscriptionActive isApproved(_id, ApprovalType.FractionalizedApproval)  {
+    /// @param _from represents the pending approval
+    function addSubAcct(address _subAcct, address _from) public virtual isSubscriptionActive isApproved(_from, ApprovalType.FractionalizedApproval)  {
         Membership storage _membership = memberships[msg.sender]; 
         _membership.subAccts.push(_subAcct); 
     }

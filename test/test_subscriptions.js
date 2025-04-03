@@ -9,6 +9,8 @@ contract("Subscriptions", (accounts) => {
     let rootInstance; 
     let ownerOfContract = accounts[0];
     let mainHolderAcct = accounts[1];
+    let subAcct = accounts[2];
+    let subAcct2 = accounts[3];
    
 
     before(async() => {
@@ -93,7 +95,7 @@ contract("Subscriptions", (accounts) => {
     }); 
 
     it("Test: changePrice(), Should revert if not owner of the contract", async() => {
-        const errMsg = "Custom error (could not decode)"; //Custom error from onlyOwner 
+        const errMsg = "Custom error (could not decode)"; //MAY HAVE TO COMEBACK TO THIS ONE 
         const revertString = `VM Exception while processing transaction: revert -- Reason given: ${errMsg}.`; 
         
         try{
@@ -103,5 +105,101 @@ contract("Subscriptions", (accounts) => {
         catch(error) {
             assert.equal(error.message, revertString);
         }
-    })
-})
+    }); 
+
+    it("Test: sendNonFractionalizedInvitation(), Send an nonfractional invitation to potential subaccount", async() => {
+        //Have to subscribe again because subscription was cancelled in cancel() test
+        await rootInstance.subscribe({from: mainHolderAcct}); 
+        await rootInstance.sendNonFractionalizedInvitation(subAcct, {from: mainHolderAcct});
+        const isSent = await rootInstance.sentApproval(subAcct);
+        assert.equal(isSent, true); 
+    }); 
+
+    it("Test: sendNonFractionalizedInvitation(), Shouldn't allow another invitation to be sent to the same person", async() => {
+        const errMsg = "Invitation was already sent"; 
+        const revertString = `VM Exception while processing transaction: revert ${errMsg} -- Reason given: ${errMsg}.`; 
+
+        try {
+            await rootInstance.sendNonFractionalizedInvitation(subAcct, {from: mainHolderAcct}); 
+            assert.fail();
+        }
+        catch(err) {
+            assert.equal(err.message, revertString);
+        }
+    }); 
+
+    it("Test: sendNonFractionalizedInvitation(), Shouldn't allow owner of the contract to send any approvals", async() => {
+        const errMsg = "The owner of this contract cannot perform this action"; 
+        const revertString = `VM Exception while processing transaction: revert ${errMsg} -- Reason given: ${errMsg}.`; 
+
+        try {
+            await rootInstance.sendNonFractionalizedInvitation(subAcct, {from: ownerOfContract}); 
+            assert.fail();
+        }
+        catch(err) {
+            assert.equal(err.message, revertString);
+        }
+    }); 
+
+    it("Test: sendNonFractionalizedInvitation(), If 'sendTo' address already has a membership, then cancel the invitation", async() => {
+        const errMsg = "You already have an account"; 
+        const revertString = `VM Exception while processing transaction: revert ${errMsg} -- Reason given: ${errMsg}.`; 
+        
+        await rootInstance.subscribe({from: subAcct});
+
+        try {
+            await rootInstance.sendNonFractionalizedInvitation(subAcct, {from: subAcct}); 
+            assert.fail();
+        }
+        catch(err) {
+            assert.equal(err.message, revertString);
+        }
+    }); 
+
+    it("Test: sendFractionalizedInvitation(), Send an nonfractional invitation to potential subaccount", async() => {
+        await rootInstance.sendFractionalizedInvitation(subAcct2, {from: mainHolderAcct});
+        const isSent = await rootInstance.sentApproval(subAcct2);
+        assert.equal(isSent, true); 
+    }); 
+//    
+    it("Test: sendFractionalizedInvitation(), Shouldn't allow another invitation to be sent to the same person", async() => {
+        const errMsg = "Invitation was already sent"; 
+        const revertString = `VM Exception while processing transaction: revert ${errMsg} -- Reason given: ${errMsg}.`; 
+
+        try {
+            await rootInstance.sendFractionalizedInvitation(subAcct2, {from: mainHolderAcct}); 
+            assert.fail();
+        }
+        catch(err) {
+            assert.equal(err.message, revertString);
+        }
+    }); 
+
+    it("Test: sendFractionalizedInvitation(), Shouldn't allow owner of the contract to send any invitations", async() => {
+        const errMsg = "The owner of this contract cannot perform this action"; 
+        const revertString = `VM Exception while processing transaction: revert ${errMsg} -- Reason given: ${errMsg}.`; 
+
+        try {
+            await rootInstance.sendFractionalizedInvitation(subAcct2, {from: ownerOfContract}); 
+            assert.fail();
+        }
+        catch(err) {
+            assert.equal(err.message, revertString);
+        }
+    }); 
+
+    it("Test: sendFractionalizedInvitation(), If 'sendTo' address already has a membership, then cancel the invitation", async() => {
+        const errMsg = "You already have an account"; 
+        const revertString = `VM Exception while processing transaction: revert ${errMsg} -- Reason given: ${errMsg}.`; 
+        
+        await rootInstance.subscribe({from: subAcct2});
+
+        try {
+            await rootInstance.sendFractionalizedInvitation(subAcct2, {from: mainHolderAcct}); 
+            assert.fail();
+        }
+        catch(err) {
+            assert.equal(err.message, revertString);
+            }
+        });
+    });
