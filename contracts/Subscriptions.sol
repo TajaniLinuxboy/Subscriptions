@@ -97,11 +97,11 @@ contract Subscription is Ownable {
     enum ApprovalType {NonFractionalApproval, FractionalizedApproval}
 
     event StatusChanged(address indexed user, bool _newStatus, bool _oldStatus);
-    event Subscribed(address indexed user, uint _price); 
+    event Subscribed(address indexed user, uint price); 
     event CancelSubscription(address indexed user); 
     event DeleteMembership(address indexed user);
-    event PriceUpdate(string indexed _name, uint _price);
-    event SendApproval(uint indexed id, address from, address to, ApprovalType approvalType); 
+    event PriceUpdate(string indexed name, uint price);
+    event SendInvite(address indexed from, address to, ApprovalType approvalType); 
     event ConfirmSubAcctApproval(address indexed potentialSubAcct); 
     event ConfirmSplitAcctApproval(address indexed potentialSubAcct);
     event RejectApproval(address indexed potentialSubAcct); 
@@ -236,7 +236,7 @@ contract Subscription is Ownable {
 
         sentApproval[_sendTo] = true; 
                 
-        emit SendApproval(pendingId, msg.sender, _sendTo, approveType); 
+        emit SendInvite(msg.sender, _sendTo, approveType); 
     }
 
     /// @notice Ex: A roomate wants to add the roomate to their subscription, 
@@ -252,7 +252,7 @@ contract Subscription is Ownable {
 
         sentApproval[_sendTo] = true; 
         
-        emit SendApproval(pendingId, msg.sender, _sendTo, approveType);
+        emit SendInvite(msg.sender, _sendTo, approveType);
     }
 
     /// @notice Allow users to confirm they have approved a split account or sub account subscription
