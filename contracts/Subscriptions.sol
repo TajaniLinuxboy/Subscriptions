@@ -303,11 +303,7 @@ contract Subscription is Ownable {
 
         sentApproval[_to] = true; 
                 
-<<<<<<< HEAD
-        emit SendInvite(msg.sender, _sendTo, approveType); 
-=======
-        emit SendApproval(pendingId, msg.sender, _to, approveType); 
->>>>>>> move-to-hardhat
+        emit SendInvite(msg.sender, _to, approveType); 
     }
 
     /// @notice Ex: A roomate wants to add the roomate to their subscription, 
