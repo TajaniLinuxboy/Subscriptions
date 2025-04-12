@@ -321,12 +321,9 @@ contract Subscription is Ownable {
 
         sentApproval[_to] = true; 
         
-<<<<<<< HEAD
         emit SendInvite(msg.sender, _sendTo, approveType);
-=======
-        emit SendApproval(pendingId, msg.sender, _to, approveType);
->>>>>>> move-to-hardhat
     }
+
 
     /// @notice Allow users to confirm they have approved a split account or sub account subscription
     /// @param _to represents addr of the pending approval
