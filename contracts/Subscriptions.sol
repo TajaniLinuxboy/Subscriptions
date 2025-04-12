@@ -105,12 +105,22 @@ contract Subscription is Ownable {
     event ConfirmSubAcctApproval(address indexed potentialSubAcct); 
     event ConfirmSplitAcctApproval(address indexed potentialSubAcct);
     event RejectApproval(address indexed potentialSubAcct); 
+
+    ///@custom:errors Custom Errors
+    error OwnerNotAllowed(address owner); 
+    error MainAcctOnly();
+    error MembershipDoesntExists(address user);      
+    error MembershipExpired(address mainAcct);
+    error IncorrectApprovalType(ApprovalType _approvalType); 
+    error NotApproved(); 
+    error MembershipAlreadyExists(address existingUser); 
+    error RequestAlreadyExists(address to); 
     
     mapping(address => bool) public isSubscribed; // Are they subscribed?
     mapping(address => Membership) public memberships; // Represents Memberships
     
     mapping(address subacct => PendingApproval) public pendingApprovals; // Represents Pending Approvals
-    mapping(address _sendTo => bool) public sentApproval; // Has the approval been sent?
+    mapping(address _to => bool) public sentApproval; // Has the approval been sent?
 
     //mapping(address subaccount => address mainholder) //Are they a sub account? 
 
@@ -118,18 +128,11 @@ contract Subscription is Ownable {
     /// @notice 1. Makes sure the owner of the contract cannot perform certain functions
     /// @notice 2. Makes sure only the main account holder can perform that certain function
     /// @notice 3. Makes sure that person is subscribed
-    modifier isSubscriptionActive() {
-        require(owner() != msg.sender, "The owner of this contract cannot perform this action"); 
-        require(msg.sender == memberships[msg.sender].mainAcct, "Only the main account holder can execute this operation"); //checks to see if you are the main acct holder
-        require(isSubscribed[msg.sender] == true, "Subscription doesn't exist, or it's cancelled"); // checks to see if the subscription exist
-                
-        Membership storage _membership = memberships[msg.sender]; 
-        if(block.timestamp < subscriptionData.timeframe) {
-           _membership.isExpired = true;  
-        }
-
-        require(_membership.isExpired == false, "Your membership has expired"); 
-
+    modifier isActive() {
+        _ownerNotAllowed();
+        _mainAcctOnly();
+        _membershipDoesntExists();
+        _membershipExpired();                 
         _; 
     }
 
@@ -139,21 +142,87 @@ contract Subscription is Ownable {
     /// @notice 3. Makes sure the approval has been approved
     /// @param _from represents the approval
     modifier isApproved(address _from, ApprovalType _approvalType) {
-        PendingApproval storage getApproval = pendingApprovals[_from]; 
-        
-        require(owner() != msg.sender, "The owner of this contract cannot perform this action"); 
-        require(getApproval._approvalType == _approvalType, "Wrong Approval Type"); 
-        require(getApproval.status == true, "Potential account hasn't approved their account"); 
+        _ownerNotAllowed();
+        _incorrectApprovalType(_from, _approvalType);
+        _notApproved(_from);
         _; 
     }
 
     /// @notice This modifier checks to see if the potential account, which is a possible 
     /// @notice sub account user, already has their own subscription where they are the main holder
-    /// @param _sendTo represents who the request is going to
-    modifier isPotentialAcctSubscribed(address _sendTo) {
-        require(isSubscribed[_sendTo] == false, "You already have an account");
+    /// @param account represents who the request is going to
+    modifier VerifyRequest(address account) {
+        _membershipAlreadyExists(account);
+        _doesRequestExists(account);
         _; 
     }
+
+    modifier isAvailableToRenew() {
+        _ownerNotAllowed();
+        _mainAcctOnly();
+        _membershipDoesntExists();
+        _;
+    }
+
+    function _ownerNotAllowed() internal view virtual {
+        if (msg.sender == owner()) {
+            revert OwnerNotAllowed(owner());
+        }
+    }
+
+    function _membershipDoesntExists() internal view virtual {
+        if (isSubscribed[msg.sender] != true) {
+            revert MembershipDoesntExists(msg.sender); 
+        }
+    }
+
+    function _membershipExpired() internal virtual {
+        if (block.timestamp > subscriptionData.timeframe) {  
+            revert MembershipExpired(msg.sender); 
+        }
+
+    }
+
+    function _incorrectApprovalType(address from, ApprovalType _approvalType) internal virtual {
+        PendingApproval storage getApproval = pendingApprovals[from]; 
+
+        if (getApproval._approvalType != _approvalType) {
+            revert IncorrectApprovalType(_approvalType);
+        }
+    }
+
+    function _mainAcctOnly() internal view virtual {
+        if (msg.sender != memberships[msg.sender].mainAcct) {
+            revert MainAcctOnly(); 
+        }
+    } 
+
+    function _membershipAlreadyExists(address account) internal view virtual {
+        if (account == address(0)) {
+            if (isSubscribed[msg.sender] == true) {
+                revert MembershipAlreadyExists(msg.sender);
+            }
+        }
+
+        if (isSubscribed[account] == true) {
+            revert MembershipAlreadyExists(account);
+        }
+    }
+
+    function _notApproved(address from) internal view virtual {
+        PendingApproval storage getApproval = pendingApprovals[from];
+
+        if (getApproval.status != true) {
+            revert NotApproved();
+        }
+    }
+
+    function _doesRequestExists(address account) internal view virtual {
+        if(sentApproval[account] == true) {
+            revert RequestAlreadyExists(account);
+        }
+    }
+
 
     /// @return Returns the amount subscribers 
     function getSubscribers() external view returns(uint) {
@@ -169,8 +238,8 @@ contract Subscription is Ownable {
     /// REMINDER: Make sure users have enough funds in their wallet
     /// REMINDER: Make sure the function is made payable
     function subscribe() public payable virtual {
-        require(owner() != msg.sender, "You cannot perform this action"); 
-        require(isSubscribed[msg.sender] == false, "You already have a subscription"); 
+        _ownerNotAllowed();
+        _membershipAlreadyExists(address(0));
 
         if (memberships[msg.sender].ownedPreviousMembership == false){
             Membership memory _member; 
@@ -200,7 +269,7 @@ contract Subscription is Ownable {
     
     /// @notice Unsubscribes membership from subscription 
     /// @notice Tracks subscriptions and cancellations
-    function cancel() external isSubscriptionActive  {   
+    function cancel() external isActive  {   
         isSubscribed[msg.sender] = false;
         memberships[msg.sender].ownedPreviousMembership = true; 
         subscriptionData.cancellations++;
@@ -211,7 +280,7 @@ contract Subscription is Ownable {
 
     /// @custom:removefunction I may remove this function 
     /// REMINDER: Test Functionality
-    function deleteMembership() external isSubscriptionActive  {
+    function deleteMembership() external isActive  {
         delete isSubscribed[msg.sender]; 
         emit DeleteMembership(msg.sender);
     }
@@ -225,41 +294,45 @@ contract Subscription is Ownable {
     }
 
     /// @notice This function will send a non fractionalized approval to the potential subaccount 
-    /// @param _sendTo Address of the potential subaccount holder (Non-Fractional)
-    function sendNonFractionalizedInvitation(address _sendTo) external virtual isSubscriptionActive isPotentialAcctSubscribed(_sendTo)  {
-        require(sentApproval[_sendTo] == false, "Invitation was already sent");
-
+    /// @param _to Address of the potential subaccount holder (Non-Fractional)
+    function sendNonFractionalizedRequest(address _to) external virtual isActive VerifyRequest(_to) {
         ApprovalType approveType = ApprovalType.NonFractionalApproval;
 
-        PendingApproval memory _pendingapproval = PendingApproval({from: msg.sender, to: _sendTo, status: true, _approvalType: approveType });         
-        pendingApprovals[_sendTo] = _pendingapproval; 
+        PendingApproval memory _pendingapproval = PendingApproval({from: msg.sender, to: _to, status: true, _approvalType: approveType });         
+        pendingApprovals[_to] = _pendingapproval; 
 
-        sentApproval[_sendTo] = true; 
+        sentApproval[_to] = true; 
                 
+<<<<<<< HEAD
         emit SendInvite(msg.sender, _sendTo, approveType); 
+=======
+        emit SendApproval(pendingId, msg.sender, _to, approveType); 
+>>>>>>> move-to-hardhat
     }
 
     /// @notice Ex: A roomate wants to add the roomate to their subscription, 
     /// @notice but they want to split/share the subscription between them
-    /// @param _sendTo Address of the potential subaccount holder  (Fractionalized) 
-    function sendFractionalizedInvitation(address _sendTo) external virtual isSubscriptionActive isPotentialAcctSubscribed(_sendTo)  {
-        require(sentApproval[_sendTo] == false, "Invitation was already sent");
-
+    /// @param _to Address of the potential subaccount holder  (Fractionalized) 
+    function sendFractionalizedRequest(address _to) external virtual isActive VerifyRequest(_to) {
         ApprovalType approveType = ApprovalType.FractionalizedApproval;
          
-        PendingApproval memory _pendingapproval = PendingApproval({from: msg.sender, to: _sendTo, status: true, _approvalType: approveType});
-        pendingApprovals[_sendTo] = _pendingapproval; 
+        PendingApproval memory _pendingapproval = PendingApproval({from: msg.sender, to: _to, status: true, _approvalType: approveType});
+        pendingApprovals[_to] = _pendingapproval; 
 
-        sentApproval[_sendTo] = true; 
+        sentApproval[_to] = true; 
         
+<<<<<<< HEAD
         emit SendInvite(msg.sender, _sendTo, approveType);
+=======
+        emit SendApproval(pendingId, msg.sender, _to, approveType);
+>>>>>>> move-to-hardhat
     }
 
     /// @notice Allow users to confirm they have approved a split account or sub account subscription
-    /// @param _sendTo represents addr of the pending approval
+    /// @param _to represents addr of the pending approval
     /// @param _approvalType represents the approval type (fractional or non-fractional) 
-    function confirmApproval(address _sendTo, ApprovalType _approvalType) external virtual {
-        require(pendingApprovals[_sendTo].to == msg.sender, "Only allowed for potential subaccount holders"); 
+    function confirmApproval(address _to, ApprovalType _approvalType) external virtual {
+        require(pendingApprovals[_to].to == msg.sender, "Only allowed for potential subaccount holders"); 
     
         if (_approvalType == ApprovalType.NonFractionalApproval) {
             emit ConfirmSubAcctApproval(msg.sender); 
@@ -284,7 +357,7 @@ contract Subscription is Ownable {
     /// @notice Add split account to membership
     /// @param _splitAcct represents who you want to add to the split account
     /// @param _from represents the pending approval
-    function addSplitAcct(address _splitAcct, address _from) public virtual isSubscriptionActive isApproved(_from, ApprovalType.NonFractionalApproval)  {
+    function addSplitAcct(address _splitAcct, address _from) public virtual isActive isApproved(_from, ApprovalType.NonFractionalApproval)  {
         Membership storage _membership = memberships[msg.sender]; 
         _membership.splitAccts.push(_splitAcct);
     }
@@ -292,7 +365,7 @@ contract Subscription is Ownable {
     /// @notice Add sub account to membership
     /// @param _subAcct represents who you want to add to the sub account
     /// @param _from represents the pending approval
-    function addSubAcct(address _subAcct, address _from) public virtual isSubscriptionActive isApproved(_from, ApprovalType.FractionalizedApproval)  {
+    function addSubAcct(address _subAcct, address _from) public virtual isActive isApproved(_from, ApprovalType.FractionalizedApproval)  {
         Membership storage _membership = memberships[msg.sender]; 
         _membership.subAccts.push(_subAcct); 
     }
@@ -300,10 +373,8 @@ contract Subscription is Ownable {
     // renew a persons membership
     // checks to see if they have a membership
     // makes them pay the subscription fee to renew membership
-    function renew() external view {
-        require(owner() != msg.sender, "The owner of this contract cannot perform this action"); 
-        require(msg.sender == memberships[msg.sender].mainAcct, "Only the main account holder can execute this operation"); //checks to see if you are the main acct holder
-        require(isSubscribed[msg.sender] == true, "Subscription doesn't exist, or it's cancelled");        
+    function renew() external view isAvailableToRenew {
+        //if (block.timestamp > subscription.timeframe)      
         //require() some sort of payment from the msg.sender
         // membership.expired = false 
     }
