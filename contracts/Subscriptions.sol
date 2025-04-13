@@ -109,13 +109,14 @@ contract Subscription is Ownable {
     ///@custom:errors Custom Errors
     error OwnerNotAllowed(address owner); 
     error MainAcctOnly();
-    error MembershipDoesntExists(address user);      
-    error MembershipExpired(address mainAcct);
+    error MembershipDoesntExists(address account);      
+    error MembershipExpired(address account);
     error IncorrectApprovalType(ApprovalType _approvalType); 
     error NotApproved(); 
-    error MembershipAlreadyExists(address existingUser); 
-    error RequestAlreadyExists(address to); 
-    
+    error MembershipAlreadyExists(address account); 
+    error RequestAlreadyExists(address account); 
+    error PotentialAccountOnly(address account);
+
     mapping(address => bool) public isSubscribed; // Are they subscribed?
     mapping(address => Membership) public memberships; // Represents Memberships
     
@@ -164,9 +165,20 @@ contract Subscription is Ownable {
         _;
     }
 
+    modifier _isPotentialAccount() {
+        _onlyPotentialSubAcct(msg.sender);
+        _;
+    }
+
     function _ownerNotAllowed() internal view virtual {
         if (msg.sender == owner()) {
             revert OwnerNotAllowed(owner());
+        }
+    }
+
+    function _onlyPotentialSubAcct(address account) internal view virtual {
+        if (pendingApprovals[account].to != msg.sender) {
+            revert PotentialAccountOnly(account); 
         }
     }
 
@@ -317,31 +329,32 @@ contract Subscription is Ownable {
 
         sentApproval[_to] = true; 
         
-        emit SendInvite(msg.sender, _sendTo, approveType);
+        emit SendInvite(msg.sender, _to, approveType);
     }
 
 
     /// @notice Allow users to confirm they have approved a split account or sub account subscription
-    /// @param _to represents addr of the pending approval
     /// @param _approvalType represents the approval type (fractional or non-fractional) 
-    function confirmApproval(address _to, ApprovalType _approvalType) external virtual {
-        require(pendingApprovals[_to].to == msg.sender, "Only allowed for potential subaccount holders"); 
-    
+    function confirmApproval(ApprovalType _approvalType) external virtual _isPotentialAccount {
+        PendingApproval storage _pendingApproval = pendingApprovals[msg.sender];
+
         if (_approvalType == ApprovalType.NonFractionalApproval) {
+            _pendingApproval.status = true;
             emit ConfirmSubAcctApproval(msg.sender); 
         }
         
         else if (_approvalType == ApprovalType.FractionalizedApproval) {
+            _pendingApproval.status = true;
             emit ConfirmSplitAcctApproval(msg.sender); 
         }
-
+        
     }
     
 
     /// @notice Allows potential sub account holders to reject an approval 
     /// @param _from represents of the pending approval
-    function rejectInvitation(address _from) external virtual  {
-        require(owner() != msg.sender, "Owner of this contract cannot perform this action"); 
+    function rejectInvitation(address _from) external virtual _isPotentialAccount {
+        _ownerNotAllowed();
         require(pendingApprovals[_from].to == msg.sender, "Only allowed for potential subaccount holders"); 
         delete pendingApprovals[_from]; 
         emit RejectApproval(msg.sender);
@@ -368,7 +381,7 @@ contract Subscription is Ownable {
     // makes them pay the subscription fee to renew membership
     function renew() external view isAvailableToRenew {
         //if (block.timestamp > subscription.timeframe)      
-        //require() some sort of payment from the msg.sender
+        // require() some sort of payment from the msg.sender
         // membership.expired = false 
     }
 }

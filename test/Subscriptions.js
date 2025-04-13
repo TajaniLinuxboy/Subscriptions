@@ -7,6 +7,8 @@ describe("Subscription Contract", () => {
     const price = 100; 
     const timeframe = 600;
 
+
+
     let subscription;
 
     async function getWallets() {
@@ -170,5 +172,18 @@ describe("Subscription Contract", () => {
 
     /* END: sendFractionalizedRequest */
 
+
+    it("Test: confirmApproval(), Confirm approval through potential subaccount", async () => {
+        const {owner, mainAcct, subAcct} = await loadFixture(getWallets);
+        const nonfractionalrequest = 0;
+        const useMainAcct = await subscription.connect(mainAcct);
+        await useMainAcct.subscribe(); 
+        await useMainAcct.sendNonFractionalizedRequest(subAcct);
+
+        await subscription.connect(subAcct).confirmApproval(nonfractionalrequest);
+        const pendingapproval = await subscription.pendingApprovals(subAcct);
+    
+        expect(await pendingapproval.status).to.equal(true);
+    });
     
 })
