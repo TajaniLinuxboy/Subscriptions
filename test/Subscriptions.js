@@ -174,7 +174,7 @@ describe("Subscription Contract", () => {
 
 
     it("Test: confirmApproval(), Confirm approval through potential subaccount", async () => {
-        const {owner, mainAcct, subAcct} = await loadFixture(getWallets);
+        const {mainAcct, subAcct} = await loadFixture(getWallets);
         const nonfractionalrequest = 0;
         const useMainAcct = await subscription.connect(mainAcct);
         await useMainAcct.subscribe(); 
@@ -183,7 +183,47 @@ describe("Subscription Contract", () => {
         await subscription.connect(subAcct).confirmApproval(nonfractionalrequest);
         const pendingapproval = await subscription.pendingApprovals(subAcct);
     
-        expect(await pendingapproval.status).to.equal(true);
+        expect(pendingapproval.status).to.equal(true);
     });
-    
+
+    it("Test: confirmApproval(), Revert(PotentialAccountOnly), Only potential account can confirm approval", async () => {
+        const {mainAcct, subAcct} = await loadFixture(getWallets);
+        const useMainAcct = await subscription.connect(mainAcct);
+        const nonfractionalrequest = 0;
+
+        await useMainAcct.subscribe();
+        await useMainAcct.sendNonFractionalizedRequest(subAcct);
+
+        await expect(subscription.connect(mainAcct).confirmApproval(nonfractionalrequest)).to.be.revertedWithCustomError(
+            subscription, 
+            "PotentialAccountOnly"
+        ).withArgs(mainAcct);
+
+    });
+
+    it("Test: rejectInvitation(), Remove the pending approval", async() => {
+        const {mainAcct, subAcct} = await loadFixture(getWallets);
+        const useMainAcct = await subscription.connect(mainAcct);
+
+        await useMainAcct.subscribe();
+        await useMainAcct.sendNonFractionalizedRequest(subAcct);
+        await subscription.connect(subAcct).rejectInvitation(mainAcct);
+
+        const pendingapproval = await subscription.pendingApprovals(subAcct);
+
+        expect(pendingapproval.status).to.equal(false);
+    });
+
+    it("Test: rejectInvitation(), Revert(RequestDoesntExists), Should revert if the pending request is not found", async () => {
+        const {owner, mainAcct, subAcct} = await loadFixture(getWallets);
+        const useMainAcct = await subscription.connect(mainAcct);
+
+        await useMainAcct.subscribe();
+        await useMainAcct.sendNonFractionalizedRequest(subAcct);
+        await expect(subscription.connect(subAcct).rejectInvitation(owner)).to.be.revertedWithCustomError(
+            subscription, 
+            "RequestDoesntExists"
+        ).withArgs(owner);
+    })
+
 })

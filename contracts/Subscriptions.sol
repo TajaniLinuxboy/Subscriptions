@@ -116,6 +116,7 @@ contract Subscription is Ownable {
     error MembershipAlreadyExists(address account); 
     error RequestAlreadyExists(address account); 
     error PotentialAccountOnly(address account);
+    error RequestDoesntExists(address account);
 
     mapping(address => bool) public isSubscribed; // Are they subscribed?
     mapping(address => Membership) public memberships; // Represents Memberships
@@ -352,12 +353,18 @@ contract Subscription is Ownable {
     
 
     /// @notice Allows potential sub account holders to reject an approval 
-    /// @param _from represents of the pending approval
+    /// @param _from represents who the pending request is coming from (sender)
     function rejectInvitation(address _from) external virtual _isPotentialAccount {
         _ownerNotAllowed();
-        require(pendingApprovals[_from].to == msg.sender, "Only allowed for potential subaccount holders"); 
-        delete pendingApprovals[_from]; 
-        emit RejectApproval(msg.sender);
+        if(_from == pendingApprovals[msg.sender].from) {
+            delete pendingApprovals[msg.sender];
+            emit RejectApproval(msg.sender); 
+        }
+
+        else {
+            revert RequestDoesntExists(_from);
+        }
+        
     }
 
     /// @notice Add split account to membership
