@@ -76,42 +76,47 @@ contract Subscription is Ownable {
 
     struct Membership {
         uint price; 
-        address mainAcct; 
-        address[] subAccts;
-        address[] splitAccts; 
+        address mainAcct;  
+        mapping(address => SubAccount) children;
         bool ownedPreviousMembership;
         bool isExpired;
     }
 
-    struct PendingApproval {
+    struct SubAccount {
+        address parentAccount;
+        address subAccount;
+        RequestType subAccountType;
+    }
+
+    struct PendingRequest {
         address from; 
         address to; 
         bool status; 
-        ApprovalType _approvalType; 
+        RequestType requestType; 
     }
     
     /// @notice FractionalizedApproval stands for the user who are on the main holder's 
     /// @notice account, and they share the subscription (Fractionalized Ownership) 
     /// @notice NonFractionalApproval stands for users who are on the main holder's
     /// @notice account, and they don't share the subscription (Non-Fractionalized Ownership)
-    enum ApprovalType {NonFractionalApproval, FractionalizedApproval}
+    enum RequestType {NonFractionalApproval, FractionalizedApproval}
 
-    event StatusChanged(address indexed user, bool _newStatus, bool _oldStatus);
-    event Subscribed(address indexed user, uint price); 
-    event CancelSubscription(address indexed user); 
-    event DeleteMembership(address indexed user);
+    event StatusChanged(address indexed account, bool _newStatus, bool _oldStatus);
+    event Subscribed(address indexed account, uint price); 
+    event CancelSubscription(address indexed account); 
+    event DeleteMembership(address indexed account);
     event PriceUpdate(string indexed name, uint price);
-    event SendInvite(address indexed from, address to, ApprovalType approvalType); 
-    event ConfirmSubAcctApproval(address indexed potentialSubAcct); 
-    event ConfirmSplitAcctApproval(address indexed potentialSubAcct);
-    event RejectApproval(address indexed potentialSubAcct); 
+    event SendInvite(address indexed from, address to, RequestType _requestType); 
+    event ConfirmRequest(address indexed from);
+    event RejectRequest(address indexed account); 
+    event AddedToMembership(address indexed parentAccount, address account);
 
     ///@custom:errors Custom Errors
     error OwnerNotAllowed(address owner); 
     error MainAcctOnly();
     error MembershipDoesntExists(address account);      
     error MembershipExpired(address account);
-    error IncorrectApprovalType(ApprovalType _approvalType); 
+    error IncorrectApprovalType(RequestType _requestType); 
     error NotApproved(); 
     error MembershipAlreadyExists(address account); 
     error RequestAlreadyExists(address account); 
@@ -121,7 +126,7 @@ contract Subscription is Ownable {
     mapping(address => bool) public isSubscribed; // Are they subscribed?
     mapping(address => Membership) public memberships; // Represents Memberships
     
-    mapping(address subacct => PendingApproval) public pendingApprovals; // Represents Pending Approvals
+    mapping(address subacct => PendingRequest) public pendingRequests; // Represents Pending Approvals
     mapping(address _to => bool) public sentApproval; // Has the approval been sent?
 
     //mapping(address subaccount => address mainholder) //Are they a sub account? 
@@ -142,13 +147,8 @@ contract Subscription is Ownable {
     /// @notice 1. Makes sure the owner of the contract cannot perform this action 
     /// @notice 2. Makes sure the approval type is correct (Non-Fractional or Fractional) 
     /// @notice 3. Makes sure the approval has been approved
-    /// @param _from represents the approval
-    modifier isApproved(address _from, ApprovalType _approvalType) {
-        _ownerNotAllowed();
-        _incorrectApprovalType(_from, _approvalType);
-        _notApproved(_from);
-        _; 
-    }
+    /// @param account represents the approval
+
 
     /// @notice This modifier checks to see if the potential account, which is a possible 
     /// @notice sub account user, already has their own subscription where they are the main holder
@@ -178,7 +178,7 @@ contract Subscription is Ownable {
     }
 
     function _onlyPotentialSubAcct(address account) internal view virtual {
-        if (pendingApprovals[account].to != msg.sender) {
+        if (pendingRequests[account].to != msg.sender) {
             revert PotentialAccountOnly(account); 
         }
     }
@@ -194,14 +194,6 @@ contract Subscription is Ownable {
             revert MembershipExpired(msg.sender); 
         }
 
-    }
-
-    function _incorrectApprovalType(address from, ApprovalType _approvalType) internal virtual {
-        PendingApproval storage getApproval = pendingApprovals[from]; 
-
-        if (getApproval._approvalType != _approvalType) {
-            revert IncorrectApprovalType(_approvalType);
-        }
     }
 
     function _mainAcctOnly() internal view virtual {
@@ -222,8 +214,8 @@ contract Subscription is Ownable {
         }
     }
 
-    function _notApproved(address from) internal view virtual {
-        PendingApproval storage getApproval = pendingApprovals[from];
+    function _notApproved(address account) internal view virtual {
+        PendingRequest storage getApproval = pendingRequests[account];
 
         if (getApproval.status != true) {
             revert NotApproved();
@@ -306,59 +298,32 @@ contract Subscription is Ownable {
         emit PriceUpdate(name, _setPrice);
     }
 
-    /// @notice This function will send a non fractionalized approval to the potential subaccount 
-    /// @param _to Address of the potential subaccount holder (Non-Fractional)
-    function sendNonFractionalizedRequest(address _to) external virtual isActive VerifyRequest(_to) {
-        ApprovalType approveType = ApprovalType.NonFractionalApproval;
+    function sendJoinRequest(address _to, RequestType _requestType) external isActive VerifyRequest(_to) {
+        PendingRequest memory _pendingRequest = PendingRequest({
+            from: msg.sender, to: _to, status: false, requestType: _requestType 
+            });
 
-        PendingApproval memory _pendingapproval = PendingApproval({from: msg.sender, to: _to, status: true, _approvalType: approveType });         
-        pendingApprovals[_to] = _pendingapproval; 
-
-        sentApproval[_to] = true; 
-                
-        emit SendInvite(msg.sender, _to, approveType); 
-    }
-
-    /// @notice Ex: A roomate wants to add the roomate to their subscription, 
-    /// @notice but they want to split/share the subscription between them
-    /// @param _to Address of the potential subaccount holder  (Fractionalized) 
-    function sendFractionalizedRequest(address _to) external virtual isActive VerifyRequest(_to) {
-        ApprovalType approveType = ApprovalType.FractionalizedApproval;
-         
-        PendingApproval memory _pendingapproval = PendingApproval({from: msg.sender, to: _to, status: true, _approvalType: approveType});
-        pendingApprovals[_to] = _pendingapproval; 
-
-        sentApproval[_to] = true; 
+        pendingRequests[_to] = _pendingRequest;
         
-        emit SendInvite(msg.sender, _to, approveType);
+        emit SendInvite(msg.sender, _to, _requestType);
     }
-
 
     /// @notice Allow users to confirm they have approved a split account or sub account subscription
-    /// @param _approvalType represents the approval type (fractional or non-fractional) 
-    function confirmApproval(ApprovalType _approvalType) external virtual _isPotentialAccount {
-        PendingApproval storage _pendingApproval = pendingApprovals[msg.sender];
+    function confirmRequest() external virtual _isPotentialAccount {
+        PendingRequest storage _pendingRequest = pendingRequests[msg.sender];
+        _pendingRequest.status = true;
 
-        if (_approvalType == ApprovalType.NonFractionalApproval) {
-            _pendingApproval.status = true;
-            emit ConfirmSubAcctApproval(msg.sender); 
-        }
-        
-        else if (_approvalType == ApprovalType.FractionalizedApproval) {
-            _pendingApproval.status = true;
-            emit ConfirmSplitAcctApproval(msg.sender); 
-        }
+        emit ConfirmRequest(_pendingRequest.from);
         
     }
     
-
     /// @notice Allows potential sub account holders to reject an approval 
     /// @param _from represents who the pending request is coming from (sender)
-    function rejectInvitation(address _from) external virtual _isPotentialAccount {
+    function rejectRequest(address _from) external virtual _isPotentialAccount {
         _ownerNotAllowed();
-        if(_from == pendingApprovals[msg.sender].from) {
-            delete pendingApprovals[msg.sender];
-            emit RejectApproval(msg.sender); 
+        if(_from == pendingRequests[msg.sender].from) {
+            delete pendingRequests[msg.sender];
+            emit RejectRequest(msg.sender); 
         }
 
         else {
@@ -367,20 +332,19 @@ contract Subscription is Ownable {
         
     }
 
-    /// @notice Add split account to membership
-    /// @param _splitAcct represents who you want to add to the split account
-    /// @param _from represents the pending approval
-    function addSplitAcct(address _splitAcct, address _from) public virtual isActive isApproved(_from, ApprovalType.NonFractionalApproval)  {
+    function addPotentialAccount(address _account) external isActive {
+        _notApproved(_account);
         Membership storage _membership = memberships[msg.sender]; 
-        _membership.splitAccts.push(_splitAcct);
-    }
+        PendingRequest storage getRequestType = pendingRequests[_account];
+        SubAccount memory createSubAcct = SubAccount({
+            parentAccount: msg.sender, 
+            subAccount: _account, 
+            subAccountType: getRequestType.requestType
+        }); 
 
-    /// @notice Add sub account to membership
-    /// @param _subAcct represents who you want to add to the sub account
-    /// @param _from represents the pending approval
-    function addSubAcct(address _subAcct, address _from) public virtual isActive isApproved(_from, ApprovalType.FractionalizedApproval)  {
-        Membership storage _membership = memberships[msg.sender]; 
-        _membership.subAccts.push(_subAcct); 
+        _membership.children[_account] = createSubAcct;
+
+        emit AddedToMembership(msg.sender, _account);
     }
 
     // renew a persons membership
