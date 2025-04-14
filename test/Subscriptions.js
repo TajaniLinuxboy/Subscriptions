@@ -87,140 +87,122 @@ describe("Subscription Contract", () => {
         ).withArgs(mainAcct);
     }); 
 
-    /* START: sendNonFractionalizedRequest */
+    /* START: Nonfractional Request */
     
-    it("Test: sendNonFractioalizedRequest(), Send nonfractionlized request to specified user", async () => {
+    it("Test: sendJoinRequest(), Send nonfractionlized request to specified user", async () => {
         const {mainAcct, subAcct} = await loadFixture(getWallets);
+        const nonfractionalrequest = 0 
+
         await subscription.connect(mainAcct).subscribe();
-        await subscription.connect(mainAcct).sendNonFractionalizedRequest(subAcct);         
+        await subscription.connect(mainAcct).sendJoinRequest(subAcct);         
         const isSent = await subscription.sentApproval(subAcct); 
 
         expect(isSent).to.equal(true);
     });
 
-    it("Test: sendNonFractionalizedRequest(), Revert(MembershipAlreadyExists), Potential subacct already has an account", async () => {
-        const {mainAcct, subAcct} = await loadFixture(getWallets); 
+    it("Test: sendJoinRequest(), Revert(MembershipAlreadyExists), Potential subacct already has an account", async () => {
+        const {mainAcct, subAcct} = await loadFixture(getWallets);
+        const nonfractionalrequest = 0
+
         await subscription.connect(mainAcct).subscribe(); 
-        await expect(subscription.connect(mainAcct).sendNonFractionalizedRequest(mainAcct)).to.be.revertedWithCustomError(
+        await expect(subscription.connect(mainAcct).sendJoinRequest(mainAcct, nonfractionalrequest)).to.be.revertedWithCustomError(
             subscription, 
             "MembershipAlreadyExists"           
         ).withArgs(mainAcct); 
         
     }); 
 
-    it("Test: sendNonFractionalizedRequest(), Revert(RequestAlreadyExists), Request to account was already sent", async () => {
+    it("Test: sendJoinRequest(), Revert(RequestAlreadyExists), Request to account was already sent", async () => {
         const {mainAcct, subAcct} = await loadFixture(getWallets);
+        const nonfractionalrequest = 0
         await subscription.connect(mainAcct).subscribe();
-        await subscription.connect(mainAcct).sendNonFractionalizedRequest(subAcct);         
+        await subscription.connect(mainAcct).sendJoinRequest(subAcct, nonfractionalrequest);         
         //send another request to the same user 
 
-        await expect(subscription.connect(mainAcct).sendNonFractionalizedRequest(subAcct)).to.be.revertedWithCustomError(
+        await expect(subscription.connect(mainAcct).sendJoinRequest(subAcct, nonfractionalrequest)).to.be.revertedWithCustomError(
             subscription, 
             "RequestAlreadyExists"
         ).withArgs(subAcct);
     });
 
-    it("Test: sendNonFractionalizedRequest(), Revert(OwnerNotAllowed), Owner of contract is not allowed to send request", async () => {
+    it("Test: sendJoinRequest(), Revert(OwnerNotAllowed), Owner of contract is not allowed to send request", async () => {
         const {owner, mainAcct} = await loadFixture(getWallets);
-        await expect(subscription.sendNonFractionalizedRequest(mainAcct)).to.be.revertedWithCustomError(
+        const nonfractionalrequest = 0
+
+        await expect(subscription.sendJoinRequest(mainAcct, nonfractionalrequest)).to.be.revertedWithCustomError(
             subscription, 
             "OwnerNotAllowed"
         ).withArgs(owner);
     });
 
-    /* END: sendNonFractionalizedRequest */
+    /* END: Nonfractional Request*/
 
-    /* START: sendFractionalizedRequest */
-    it("Test: sendNonFractionalizedInvitation(), Send nonfractionlized request to specified user", async () => {
+
+    /* START: Fractional Request */
+
+    it("Test: sendJoinRequest(), Send fractionalized request to specified user", async () => {
         const {mainAcct, subAcct} = await loadFixture(getWallets);
+        const fractionalrequest = 1
+
         await subscription.connect(mainAcct).subscribe();
-        await subscription.connect(mainAcct).sendFractionalizedRequest(subAcct);         
+        await subscription.connect(mainAcct).sendJoinRequest(subAcct, fractionalrequest);         
         const isSent = await subscription.sentApproval(subAcct); 
 
         expect(isSent).to.equal(true);
     });
-
-    it("Test: sendFractionalizedRequest(), Revert(MembershipAlreadyExists), Potential subacct already has an account", async () => {
-        const {mainAcct, subAcct} = await loadFixture(getWallets); 
-        await subscription.connect(mainAcct).subscribe(); 
-        await expect(subscription.connect(mainAcct).sendFractionalizedRequest(mainAcct)).to.be.revertedWithCustomError(
-            subscription, 
-            "MembershipAlreadyExists"           
-        ).withArgs(mainAcct); 
-        
-    }); 
-
-    it("Test: sendFractionalizedRequest(), Revert(RequestAlreadyExists), Request to account was already sent", async () => {
-        const {mainAcct, subAcct} = await loadFixture(getWallets);
-        await subscription.connect(mainAcct).subscribe();
-        await subscription.connect(mainAcct).sendFractionalizedRequest(subAcct);         
-        //send another request to the same user 
-
-        await expect(subscription.connect(mainAcct).sendFractionalizedRequest(subAcct)).to.be.revertedWithCustomError(
-            subscription, 
-            "RequestAlreadyExists"
-        ).withArgs(subAcct);
-    });
-
-    it("Test: sendFractionalizedRequest(), Revert(OwnerNotAllowed), Owner of contract is not allowed to send request", async () => {
-        const {owner, mainAcct} = await loadFixture(getWallets);
-        await expect(subscription.sendFractionalizedRequest(mainAcct)).to.be.revertedWithCustomError(
-            subscription, 
-            "OwnerNotAllowed"
-        ).withArgs(owner);
-    });
-
-    /* END: sendFractionalizedRequest */
+    
+    /* END: Fractional Request */
 
 
-    it("Test: confirmApproval(), Confirm approval through potential subaccount", async () => {
+    it("Test: confirmRequest(), Confirm approval through potential subaccount", async () => {
         const {mainAcct, subAcct} = await loadFixture(getWallets);
         const nonfractionalrequest = 0;
         const useMainAcct = await subscription.connect(mainAcct);
         await useMainAcct.subscribe(); 
-        await useMainAcct.sendNonFractionalizedRequest(subAcct);
+        await useMainAcct.sendJoinRequest(subAcct, nonfractionalrequest);
 
-        await subscription.connect(subAcct).confirmApproval(nonfractionalrequest);
-        const pendingapproval = await subscription.pendingApprovals(subAcct);
+        await subscription.connect(subAcct).confirmRequest(nonfractionalrequest);
+        const pendingapproval = await subscription.pendingRequests(subAcct);
     
         expect(pendingapproval.status).to.equal(true);
     });
 
-    it("Test: confirmApproval(), Revert(PotentialAccountOnly), Only potential account can confirm approval", async () => {
+    it("Test: confirmRequest(), Revert(PotentialAccountOnly), Only potential account can confirm approval", async () => {
         const {mainAcct, subAcct} = await loadFixture(getWallets);
         const useMainAcct = await subscription.connect(mainAcct);
         const nonfractionalrequest = 0;
 
         await useMainAcct.subscribe();
-        await useMainAcct.sendNonFractionalizedRequest(subAcct);
+        await useMainAcct.sendJoinRequest(subAcct, nonfractionalrequest);
 
-        await expect(subscription.connect(mainAcct).confirmApproval(nonfractionalrequest)).to.be.revertedWithCustomError(
+        await expect(subscription.connect(mainAcct).confirmRequest()).to.be.revertedWithCustomError(
             subscription, 
             "PotentialAccountOnly"
         ).withArgs(mainAcct);
 
     });
 
-    it("Test: rejectInvitation(), Remove the pending approval", async() => {
+    it("Test: rejectRequest(), Remove the pending approval", async() => {
         const {mainAcct, subAcct} = await loadFixture(getWallets);
         const useMainAcct = await subscription.connect(mainAcct);
+        const nonfractionalrequest = 0;
 
         await useMainAcct.subscribe();
-        await useMainAcct.sendNonFractionalizedRequest(subAcct);
-        await subscription.connect(subAcct).rejectInvitation(mainAcct);
+        await useMainAcct.sendJoinRequest(subAcct, nonfractionalrequest);
+        await subscription.connect(subAcct).rejectRequest(mainAcct);
 
-        const pendingapproval = await subscription.pendingApprovals(subAcct);
+        const pendingapproval = await subscription.pendingRequests(subAcct);
 
         expect(pendingapproval.status).to.equal(false);
     });
 
-    it("Test: rejectInvitation(), Revert(RequestDoesntExists), Should revert if the pending request is not found", async () => {
+    it("Test: rejectRequest(), Revert(RequestDoesntExists), Should revert if the pending request is not found", async () => {
         const {owner, mainAcct, subAcct} = await loadFixture(getWallets);
         const useMainAcct = await subscription.connect(mainAcct);
 
         await useMainAcct.subscribe();
-        await useMainAcct.sendNonFractionalizedRequest(subAcct);
-        await expect(subscription.connect(subAcct).rejectInvitation(owner)).to.be.revertedWithCustomError(
+        await useMainAcct.sendJoinRequest(subAcct);
+        await expect(subscription.connect(subAcct).rejectRequest(owner)).to.be.revertedWithCustomError(
             subscription, 
             "RequestDoesntExists"
         ).withArgs(owner);
