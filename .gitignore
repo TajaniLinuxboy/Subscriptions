@@ -1,4 +1,7 @@
 node_modules/ 
 package.json
+.env
 cache/
-artifacts
+artifacts/
+scripts/
+contracts/PriceFeed.sol
