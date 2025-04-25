@@ -1,39 +1,8 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0; 
-
-// Track User Subscriptions 
-    // By Addr
-// Update Status on Subscripton
-    // Enums (Inactive, Active) 
-// Cancel Subscription based on status
-// Allow users to be notified when a price changed happened on a subscription
-    // Create Events
-
-
-// Allow users to give rating on subscriptions????
-
-// I want this contract to be able to be used by other developers
-// to create their own subscriptions
-// One contract per Subscription EX: Netflix -> One Subscription
-
-// Subscription name and price is going to be set on initialization of the contract (EX: Netflix, $0.00) 
-
-// Biggest Issue: 
-// How do users know they are buying the correct subscription and not some scam?
-// I can verify that users are buying the correct subscription through message signature
-// Each transaction is signed with a private key, which in returns creates a signature hash
-// This signature hash can be used to verify the owner of sed subscription
-
-
-// Fracationlized Accounts, also called split accounts (splitAcct) represent a roomate to roomate behavior. 
-// This means that you want to share the subscription, buy both will split the subscription payment between each other
-
-// NonFractionalized Accounts, also called sub accounts (subAcct) represents a parent adding a child to their membership
-// Meaning, they are considered add-ons, and can be set up to require a fee
-
 /// @author Keshawn
 /// @title Subscription Project
-/// @custom:experimental This is an experimental contract.
+// SPDX-License-Identifier: MIT
+
+pragma solidity ^0.8.0; 
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -77,7 +46,6 @@ contract Subscription is Ownable {
     struct Membership {
         uint price; 
         address mainAcct;  
-        mapping(address => SubAccount) children;
         bool ownedPreviousMembership;
         bool isExpired;
     }
@@ -101,6 +69,7 @@ contract Subscription is Ownable {
     /// @notice account, and they don't share the subscription (Non-Fractionalized Ownership)
     enum RequestType {NonFractionalApproval, FractionalizedApproval}
 
+    /// @custom:events Custom Events
     event StatusChanged(address indexed account, bool _newStatus, bool _oldStatus);
     event Subscribed(address indexed account, uint price); 
     event CancelSubscription(address indexed account); 
@@ -128,13 +97,13 @@ contract Subscription is Ownable {
     
     mapping(address subacct => PendingRequest) public pendingRequests; // Represents Pending Approvals
     mapping(address _to => bool) public sentApproval; // Has the approval been sent?
-
-    //mapping(address subaccount => address mainholder) //Are they a sub account? 
+    mapping(address => SubAccount) children; // Are they a sub account?
 
     /// @notice This modifier checks to see if the subscription is active by: 
     /// @notice 1. Makes sure the owner of the contract cannot perform certain functions
     /// @notice 2. Makes sure only the main account holder can perform that certain function
     /// @notice 3. Makes sure that person is subscribed
+    /// @notice 4. Makes sure the membership isn't expired
     modifier isActive() {
         _ownerNotAllowed();
         _mainAcctOnly();
@@ -143,52 +112,57 @@ contract Subscription is Ownable {
         _; 
     }
 
-    /// @notice This modifier checks to see if the pending approval has been approved by: 
-    /// @notice 1. Makes sure the owner of the contract cannot perform this action 
-    /// @notice 2. Makes sure the approval type is correct (Non-Fractional or Fractional) 
-    /// @notice 3. Makes sure the approval has been approved
-    /// @param account represents the approval
 
-
-    /// @notice This modifier checks to see if the potential account, which is a possible 
-    /// @notice sub account user, already has their own subscription where they are the main holder
-    /// @param account represents who the request is going to
+    /// @notice This modifier checks to see if the request is valid
+    /// @notice 1. If membership exists already, then revert
+    /// @notice 2. If the request for this account exists already, then revert
+    /// @param account Represents what account needs to be verified
     modifier VerifyRequest(address account) {
         _membershipAlreadyExists(account);
         _doesRequestExists(account);
         _; 
     }
 
-    modifier isAvailableToRenew() {
+    /// @notice This modifier is similar to isActive(), but checks to if the membership
+    /// @notice is available to be renewed
+    /// @notice 1. Owner cannot perform this action; 
+    /// @notice 2. Only main account holder can perform this action
+    /// @notice 3. Checks to see if membership exists
+    modifier verifyAcctForRenewal() {
         _ownerNotAllowed();
         _mainAcctOnly();
         _membershipDoesntExists();
         _;
     }
 
-    modifier _isPotentialAccount() {
+    /// @notice This modifier only allows a subaccount holder to perform action
+    modifier onlySubAcct() {
         _onlyPotentialSubAcct(msg.sender);
         _;
     }
 
+    /// @notice Owner cannot perform action
     function _ownerNotAllowed() internal view virtual {
         if (msg.sender == owner()) {
             revert OwnerNotAllowed(owner());
         }
     }
 
+    /// @notice Only sub account holder can perfom action
     function _onlyPotentialSubAcct(address account) internal view virtual {
         if (pendingRequests[account].to != msg.sender) {
             revert PotentialAccountOnly(account); 
         }
     }
 
+    /// @notice Revert if membership doesn't exists
     function _membershipDoesntExists() internal view virtual {
         if (isSubscribed[msg.sender] != true) {
             revert MembershipDoesntExists(msg.sender); 
         }
     }
 
+    /// @notice Revert if membership has expired
     function _membershipExpired() internal virtual {
         if (block.timestamp > subscriptionData.timeframe) {  
             revert MembershipExpired(msg.sender); 
@@ -196,14 +170,16 @@ contract Subscription is Ownable {
 
     }
 
+    /// @notice Only main account can perform action
     function _mainAcctOnly() internal view virtual {
         if (msg.sender != memberships[msg.sender].mainAcct) {
             revert MainAcctOnly(); 
         }
     } 
 
+    /// @notice Revert if membership exists already
     function _membershipAlreadyExists(address account) internal view virtual {
-        if (account == address(0)) {
+        if (account == address(0)) { //If no account value is passed, will use msg.sender instead
             if (isSubscribed[msg.sender] == true) {
                 revert MembershipAlreadyExists(msg.sender);
             }
@@ -214,6 +190,7 @@ contract Subscription is Ownable {
         }
     }
 
+    /// @notice Revert if pending request hasn't been approved
     function _notApproved(address account) internal view virtual {
         PendingRequest storage getApproval = pendingRequests[account];
 
@@ -222,6 +199,7 @@ contract Subscription is Ownable {
         }
     }
 
+    /// @notice Revert if request to account already exists
     function _doesRequestExists(address account) internal view virtual {
         if(sentApproval[account] == true) {
             revert RequestAlreadyExists(account);
@@ -240,9 +218,7 @@ contract Subscription is Ownable {
     }     
 
     /// @notice Allows users to subscribe to the subscription 
-    /// REMINDER: Make sure users have enough funds in their wallet
-    /// REMINDER: Make sure the function is made payable
-    function subscribe() public payable virtual {
+    function subscribe() public virtual {
         _ownerNotAllowed();
         _membershipAlreadyExists(address(0));
 
@@ -298,6 +274,10 @@ contract Subscription is Ownable {
         emit PriceUpdate(name, _setPrice);
     }
 
+
+    /// @notice Sends a pending request to specified account
+    /// @param _to Represents who the request is being sent to
+    /// @param _requestType Represents the request type (Fractional/NonFractional)
     function sendJoinRequest(address _to, RequestType _requestType) external isActive VerifyRequest(_to) {
         PendingRequest memory _pendingRequest = PendingRequest({
             from: msg.sender, to: _to, status: false, requestType: _requestType 
@@ -308,8 +288,8 @@ contract Subscription is Ownable {
         emit SendInvite(msg.sender, _to, _requestType);
     }
 
-    /// @notice Allow users to confirm they have approved a split account or sub account subscription
-    function confirmRequest() external virtual _isPotentialAccount {
+    /// @notice Allow potential subaccount holder to approve/confirm request
+    function confirmRequest() external virtual onlySubAcct {
         PendingRequest storage _pendingRequest = pendingRequests[msg.sender];
         _pendingRequest.status = true;
 
@@ -318,8 +298,9 @@ contract Subscription is Ownable {
     }
     
     /// @notice Allows potential sub account holders to reject an approval 
+    /// @notice Reverts if request doesn't exists
     /// @param _from represents who the pending request is coming from (sender)
-    function rejectRequest(address _from) external virtual _isPotentialAccount {
+    function rejectRequest(address _from) external virtual onlySubAcct {
         _ownerNotAllowed();
         if(_from == pendingRequests[msg.sender].from) {
             delete pendingRequests[msg.sender];
@@ -332,9 +313,10 @@ contract Subscription is Ownable {
         
     }
 
+    /// @notice Adds potential account (subaccount) to parent membership
+    /// @param _account Represents who is being added to the membership
     function addPotentialAccount(address _account) external isActive {
         _notApproved(_account);
-        Membership storage _membership = memberships[msg.sender]; 
         PendingRequest storage getRequestType = pendingRequests[_account];
         SubAccount memory createSubAcct = SubAccount({
             parentAccount: msg.sender, 
@@ -342,17 +324,11 @@ contract Subscription is Ownable {
             subAccountType: getRequestType.requestType
         }); 
 
-        _membership.children[_account] = createSubAcct;
+        children[_account] = createSubAcct;
 
         emit AddedToMembership(msg.sender, _account);
     }
 
-    // renew a persons membership
-    // checks to see if they have a membership
-    // makes them pay the subscription fee to renew membership
     function renew() external view isAvailableToRenew {
-        //if (block.timestamp > subscription.timeframe)      
-        // require() some sort of payment from the msg.sender
-        // membership.expired = false 
     }
 }

@@ -1,5 +1,8 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("@nomicfoundation/hardhat-ignition-ethers");
+require("dotenv").config({path:__dirname + '/.env'});
 
+const {API_URL, PRIVATE_KEY} = process.env;
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   solidity: {
@@ -14,6 +17,12 @@ module.exports = {
           }
         }
       }
+    }
+  },
+    networks: {
+      hedera_testnet: {
+        url: API_URL, 
+        accounts: [`${PRIVATE_KEY}`]
     }
   }
 }
