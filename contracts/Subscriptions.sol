@@ -10,18 +10,13 @@ contract Subscription is Ownable {
 
     string internal name; 
     uint internal price; 
-    uint internal addOnAcctPrice;
     uint internal timeFrame; 
-    string[] internal acceptedTokens;
     uint private _subscribers; 
     uint private _cancellations; 
-
-    uint private pendingId; 
 
     struct SubscriptionData {
         uint price; 
         uint timeframe; 
-        uint addOnAcctPrice;
         uint subscribers; 
         uint cancellations;
         string name;
@@ -30,13 +25,16 @@ contract Subscription is Ownable {
     SubscriptionData public subscriptionData;
 
     /// @notice Constructor Initiates Subscription Data Struct
-    /// @param _name, _price, _timeframe 
+    /// @param _name Represents the name ef the subscription
+    /// @param _price Represents the price of the subscription in usd
+    /// @param _timeframe Represents the timeframe for the subscription (i.e 1 month, 2 month) in seconds
     /// @dev other paramters included default values set by the variables in the beginning 
     constructor(string memory _name, uint _price, uint _timeframe) Ownable(msg.sender) {
+        require(_timeframe % 60 == 0, "Time frame has to be evenly divisble by 60");
+
        subscriptionData = SubscriptionData(
         _price, 
-        block.timestamp + _timeframe, 
-        addOnAcctPrice, 
+        _timeframe, 
         _subscribers,
          _cancellations, 
          _name
@@ -45,7 +43,8 @@ contract Subscription is Ownable {
 
     struct Membership {
         uint price; 
-        address mainAcct;  
+        address mainAcct; 
+        uint timeLimit; 
         bool ownedPreviousMembership;
         bool isExpired;
     }
@@ -79,15 +78,17 @@ contract Subscription is Ownable {
     event ConfirmRequest(address indexed from);
     event RejectRequest(address indexed account); 
     event AddedToMembership(address indexed parentAccount, address account);
+    event RenewedMembership(address indexed account);
 
     ///@custom:errors Custom Errors
     error OwnerNotAllowed(address owner); 
     error MainAcctOnly();
-    error MembershipDoesntExists(address account);      
-    error MembershipExpired(address account);
     error IncorrectApprovalType(RequestType _requestType); 
     error NotApproved(); 
+    error MembershipDoesntExists(address account);      
+    error MembershipExpired(address account);
     error MembershipAlreadyExists(address account); 
+    //error MembershipIsNotActive(address account);
     error RequestAlreadyExists(address account); 
     error PotentialAccountOnly(address account);
     error RequestDoesntExists(address account);
@@ -164,7 +165,8 @@ contract Subscription is Ownable {
 
     /// @notice Revert if membership has expired
     function _membershipExpired() internal virtual {
-        if (block.timestamp > subscriptionData.timeframe) {  
+        Membership storage member = memberships[msg.sender];
+        if (block.timestamp > member.timeLimit) {  
             revert MembershipExpired(msg.sender); 
         }
 
@@ -218,13 +220,14 @@ contract Subscription is Ownable {
     }     
 
     /// @notice Allows users to subscribe to the subscription 
-    function subscribe() public virtual {
+    function subscribe() public payable virtual {
         _ownerNotAllowed();
         _membershipAlreadyExists(address(0));
 
         if (memberships[msg.sender].ownedPreviousMembership == false){
             Membership memory _member; 
-            _member.mainAcct = msg.sender;  
+            _member.mainAcct = msg.sender;
+            _member.timeLimit = block.timestamp + subscriptionData.timeframe;  
 
             memberships[msg.sender] = _member;  
             isSubscribed[msg.sender] = true;
@@ -236,6 +239,7 @@ contract Subscription is Ownable {
         else {
             Membership memory _member; 
             _member.mainAcct = msg.sender;  
+            _member.timeLimit = block.timestamp + subscriptionData.timeframe;  
 
             memberships[msg.sender] = _member;  
             isSubscribed[msg.sender] = true;
@@ -329,6 +333,10 @@ contract Subscription is Ownable {
         emit AddedToMembership(msg.sender, _account);
     }
 
-    function renew() external view isAvailableToRenew {
+    function renew() public virtual payable verifyAcctForRenewal {
+        Membership storage member = memberships[msg.sender];
+        member.timeLimit = block.timestamp + subscriptionData.timeframe;
+
+        emit RenewedMembership(msg.sender); 
     }
 }
